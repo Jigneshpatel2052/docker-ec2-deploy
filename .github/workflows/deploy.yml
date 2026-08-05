@@ -1,0 +1,73 @@
+name: Deploy Docker WebApp to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+
+jobs:
+
+ deploy:
+
+  runs-on: ubuntu-latest
+
+
+  steps:
+
+  - name: Checkout Code
+    uses: actions/checkout@v4
+
+
+  - name: Build Docker Image
+    run: |
+      docker build -t mywebapp:latest .
+
+
+  - name: Save Docker Image
+    run: |
+      docker save mywebapp:latest -o mywebapp.tar
+      chmod 644 mywebapp.tar
+
+
+  - name: Copy Image to Docker Server
+    uses: appleboy/scp-action@v0.1.7
+
+    with:
+
+      host: ${{ secrets.EC2_HOST }}
+
+      username: ${{ secrets.EC2_USER }}
+
+      key: ${{ secrets.EC2_SSH_KEY }}
+
+      source: mywebapp.tar
+
+      target: /home/ec2-user/
+
+
+  - name: Deploy Container
+
+    uses: appleboy/ssh-action@v1.0.3
+
+    with:
+
+      host: ${{ secrets.EC2_HOST }}
+
+      username: ${{ secrets.EC2_USER }}
+
+      key: ${{ secrets.EC2_SSH_KEY }}
+
+
+      script: |
+
+        sudo docker load -i /home/ec2-user/mywebapp.tar
+
+        sudo docker stop mywebapp || true
+
+        sudo docker rm mywebapp || true
+
+        sudo docker run -d \
+        --name mywebapp \
+        -p 8086:80 \
+        mywebapp:latest
